@@ -1,5 +1,6 @@
 const form        = document.querySelector('.js-mistake');
 const formClose   = form.querySelectorAll('.js-mistake-close');
+const formInput   = form.querySelector('.js-mistake-input');
 const formButton  = form.querySelector('.js-mistake-button');
 const formMessage = form.querySelector('.js-mistake-message');
 
@@ -7,15 +8,15 @@ const keyMap      = { 13: false, 17: false };
 
 /**
  * [replace extra spaces and linebreaks from string]
- * @param  {[String]} line [input value]
- * @return {[String]}      [output value]
+ * @param  {String} line [input value]
+ * @return {String}      [output value]
  */
 const removeExtra = line => line.replace(/(\r\n|\n|\r)/gm, ` `).replace(/\s+/g, ` `);
 
 /**
  * [prepare parameters for building mistake fragment]
- * @param  {[Object]} res [input value]
- * @return {[Object]}     [output value]
+ * @param  {Object} res [input value]
+ * @return {Object}     [output value]
  */
 const modifyTexts = res => {
   let i = 0;
@@ -52,9 +53,9 @@ const modifyTexts = res => {
 }
 
 /**
- * [main function that find ]
- * @param  {[Object]} sel [actual data about selection area]
- * @return {[Object]}     [prepared data to build mistake fragment]
+ * [main function that find necessary areas]
+ * @param  {Object} sel [actual data about selection area]
+ * @return {Object}     [prepared data to build mistake fragment]
  */
 const getSelectionData = sel => {
   let result = { text: ``, 'preCaret': ``, selected: `` };
@@ -92,17 +93,14 @@ const getSelectionData = sel => {
 
 /**
  * [a function that is called when the user selected text]
- * @return {[String]} [html string that is prepared to be appended to DOM]
+ * @return {String} [html string that is prepared to be appended to DOM]
  */
-const catchFragment = () => {
-  let sel            = window.getSelection ? window.getSelection() : document.selection;
+const catchFragment = sel => {
   let data           = getSelectionData(sel);
   let fragmentRange  = 80;
   let beforeIndex    = data.preCaret.length - data.selected.length - fragmentRange;
   let beforeFragment = ``;
-  let fragment       = `<span>${data.selected}</span>`;
-
-  if (data.selected.length === 0) return;
+  let fragment       = `<span style="color:#ff3729;">${data.selected}</span>`;
 
   for (let i = data.preCaret.length; i < data.preCaret.length + fragmentRange; i++) {
     if (!data.text[i]) break;
@@ -117,26 +115,48 @@ const catchFragment = () => {
 
   fragment = `...${beforeFragment + fragment}`;
 
-  return fragment;
+  return {
+    selLength: data.selected.length,
+    fragment: fragment
+  };
 };
-
-
 
 // _____ CUSTOM LOGIC _____
 
 const openForm = () => {
-  let fragment = catchFragment();
-  formMessage.innerHTML = fragment;
+  let sel = window.getSelection ? window.getSelection() : document.selection;
+  let data;
+  if (sel.toString().length === 0) return;
+  data = catchFragment(sel);
+  if (data.selLength > 150) {
+    formMessage.innerHTML = `Вы выделили слишком длинный текст`;
+    form.classList.add('is-active', 'is-error');
+  } else {
+    formMessage.innerHTML = data.fragment;
+    form.classList.add('is-active');
+  }
   window.bodyFixed(true);
-  form.classList.add('is-active');
 };
 
 const closeForm = () => {
   window.bodyFixed(false);
-  form.classList.remove('is-active');
-}
+  formMessage.innerHTML = ``;
+  formInput.value = ``;
+  form.classList.remove('is-active', 'is-error');
+};
 
-const submitForm = () => {};
+const submitForm = () => {
+  let request = new XMLHttpRequest();
+  let data = {
+    page: window.location.href,
+    content: formMessage.innerHTML,
+    comment: formInput.value
+  };
+  request.open('POST', '/send_mistake/', true);
+  request.setRequestHeader('Content-Type', 'application/json');
+  request.send(JSON.stringify(data));
+  closeForm();
+};
 
 const setEvents = () => {
   document.addEventListener('keydown', e => {
